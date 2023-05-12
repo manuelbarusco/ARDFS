@@ -4,12 +4,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 
-public class DatasetField extends Field {
+public class DatasetIdField extends Field {
 
     private static final FieldType type = new FieldType();
 
     static {
-        type.setStored(false);
+        type.setStored(true);
         type.setTokenized(true);
         type.setStoreTermVectors(true);
         type.setStoreTermVectorPositions(true);
@@ -21,7 +21,7 @@ public class DatasetField extends Field {
      * @param key name of the field
      * @param value value of the field
      */
-    public DatasetField(final String key, final String value) {
+    public DatasetIdField(final String key, final String value) {
         super(key, value, type);
     }
 }

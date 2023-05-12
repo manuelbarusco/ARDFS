@@ -49,7 +49,7 @@ public class DatasetSearcher {
      */
     public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, int maxDatasetsRetrieved) throws IOException {
         //check for the indexPath
-        if(indexPath.isEmpty() || indexPath == null)
+        if(indexPath == null || indexPath.isEmpty())
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
 
         File indexDirectory = new File(indexPath);
@@ -63,31 +63,31 @@ public class DatasetSearcher {
         this.analyzer = analyzer;
         this.similarity = similarity;
 
-        final Path indexDir = Paths.get(indexPath);
         try {
-            indexReader = DirectoryReader.open(FSDirectory.open(indexDir));
+            indexReader = DirectoryReader.open(FSDirectory.open(indexDirectory.toPath()));
         } catch (IOException e) {
-            throw new IllegalArgumentException(String.format("Unable to create the index reader for directory %s: %s.",
-                    indexDir.toAbsolutePath(), e.getMessage()), e);
+            throw new IllegalArgumentException("Cannot create the IndexReader for the directory: "+indexDirectory.getPath()+" Error: "+e);
         }
 
         indexSearcher = new IndexSearcher(indexReader);
-        indexSearcher.setSimilarity(similarity);
+        indexSearcher.setSimilarity(this.similarity);
 
         //check for the results directory path
-        if(resultsDirectoryPath.isEmpty() || resultsDirectoryPath == null)
+        if(resultsDirectoryPath == null || resultsDirectoryPath.isEmpty())
             throw new IllegalArgumentException("The results directory path cannot be null or empty");
 
         File resultsDirectory = new File(resultsDirectoryPath);
-        if(!indexDirectory.isDirectory() || !indexDirectory.exists())
+        if(!resultsDirectory.isDirectory() || !resultsDirectory.exists())
             throw new IllegalArgumentException("The results directory specified does not exist");
 
         //read the queries
         queries = new QueriesReader().readQueries(queryPath);
+
+        this.maxDatasetsRetrieved = maxDatasetsRetrieved;
     }
 
     /**
-     * This method will search only on the dataset meta-data
+     * This method will search only on the dataset meta-data fields
      * @param runID id of the run
      * @throws ParseException if there are problems during the query parsing
      * @throws IOException if the index searcher has some problems during the search in the index
