@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashSet;
 
 /**
  * This class will wrap the indexing phase of EDS
@@ -38,14 +39,16 @@ public class DatasetIndexer {
     private Similarity similarity;                      //Lucene Similarity object that must be used during the indexing phase
     private Analyzer analyzer;                          //Analyzer that mus be used during the indexing phase
     private static final int RAMBUFFER_SIZE = 2048 ;    //RAMBuffer size limit for the index writer
+    private boolean resume;                             //indicates if the indexere is in resume mode or not
 
     /**
      * Constructor: this method will create the object and set the IndexWriter
      * @param indexPath string with the path to the directory where to store the index
      * @param similarity similarity that must be used during the indexing
      * @param analyzer analyzer that must be used during the indexing phase
+     * @param resume boolean that indicates if we have to resume an indexing process
      */
-    public DatasetIndexer(String indexPath, Similarity similarity, Analyzer analyzer){
+    public DatasetIndexer(String indexPath, Similarity similarity, Analyzer analyzer, boolean resume){
         //check for the indexPath
         if(indexPath.isEmpty() || indexPath == null)
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -58,9 +61,14 @@ public class DatasetIndexer {
         iwc = new IndexWriterConfig();
         iwc.setSimilarity(similarity);
         iwc.setRAMBufferSizeMB(RAMBUFFER_SIZE);
-        iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        if(resume)
+            iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        else
+            iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCommitOnClose(true);
         iwc.setUseCompoundFile(true);
+
+        this.resume = resume;
 
     }
 
@@ -89,15 +97,20 @@ public class DatasetIndexer {
 
         int datasetCount = 0;
 
+        HashSet<String> skipDatasets = new HashSet<>();
+        skipDatasets.add("dataset-11580");
+
         for(File dataset: datasets){
 
-            if (dataset.isDirectory()) {
+            if (dataset.isDirectory() && !skipDatasets.contains(dataset.getName())) {
 
                 //check if the dataset was already indexed
 
-                if (!isIndexed(dataset)){
+                boolean indexed = false;
+                if (resume)
+                    indexed = isIndexed(dataset);
 
-                    System.out.println("Indexing dataset: " + dataset.getName());
+                if (!indexed){
 
                     DatasetReader reader = new DatasetReader(dataset.getAbsolutePath());
                     DatasetMetaData metaData = reader.getMetaData();
@@ -113,6 +126,9 @@ public class DatasetIndexer {
 
                 }
 
+                if (datasetCount % 1000 == 0)
+                    System.out.println("Indexed: "+datasetCount);
+
             }
         }
 
@@ -127,7 +143,7 @@ public class DatasetIndexer {
      * @throws IOException if there are problems with the dataset_metadata.json file of the dataset
      */
     private boolean isIndexed(File dataset) throws IOException {
-        FileReader metadataReader = new FileReader(dataset.getPath());
+        FileReader metadataReader = new FileReader(dataset.getPath()+"/dataset_metadata.json");
         JsonElement metadataJson = JsonParser.parseReader(metadataReader);
         JsonObject metadata = metadataJson.getAsJsonObject();
         metadataReader.close();
@@ -149,7 +165,9 @@ public class DatasetIndexer {
 
         dataset.add(new DatasetIdField(DatasetFields.ID, metaData.dataset_id));
         dataset.add(new DatasetField(DatasetFields.TITLE, metaData.title));
-        dataset.add(new DatasetField(DatasetFields.DESCRIPTION, metaData.description));
+
+        if (metaData.description != null)
+            dataset.add(new DatasetField(DatasetFields.DESCRIPTION, metaData.description));
 
         if (metaData.author!=null)
             dataset.add(new DatasetField(DatasetFields.AUTHOR, metaData.author));
@@ -177,9 +195,6 @@ public class DatasetIndexer {
         contentJena = null;
         System.gc();
 
-        dataset = new Document();
-        dataset.add(new DatasetField(DatasetFields.ID, metaData.dataset_id));
-
         if(contentRDFLib!=null){
             for(String entity: contentRDFLib.entities)
                 dataset.add(new DatasetField(DatasetFields.ENTITIES, entity));
@@ -196,7 +211,11 @@ public class DatasetIndexer {
 
         //System.out.println((Runtime.getRuntime().totalMemory() / (1024*1024)) - (Runtime.getRuntime().freeMemory() / (1024*1024) ));
 
-        writer.addDocument(dataset);
+        try {
+            writer.addDocument(dataset);
+        } catch (OutOfMemoryError e){
+            System.out.println("OutOfMemory in dataset: "+metaData.dataset_id);
+        }
     }
 
     /**
@@ -204,13 +223,16 @@ public class DatasetIndexer {
      */
     public static void main(String[] args) throws IOException {
 
-        String indexPath = "/media/manuel/Tesi/Index";
-        String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Datasets";
+        String indexPath = "/media/manuel/Tesi/IndexJENA_RDFLib";
+        String datasetsDirectoryPath = "/media/manuel/Tesi/Datasets";
+        //String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Datasets";
 
         Analyzer a = new StandardAnalyzer();
         Similarity s = new BM25Similarity();
 
-        DatasetIndexer indexer = new DatasetIndexer(indexPath, s, a);
+        boolean resume = false;
+        DatasetIndexer indexer = new DatasetIndexer(indexPath, s, a, resume);
+
         indexer.indexDatasets(datasetsDirectoryPath);
 
     }

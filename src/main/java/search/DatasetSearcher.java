@@ -1,6 +1,8 @@
 package search;
 
+import index.DatasetIndexer;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -8,16 +10,15 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
 import parse.DatasetFields;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Locale;
 
 /**
@@ -47,7 +48,7 @@ public class DatasetSearcher {
      * @param maxDatasetsRetrieved max number of datasets to retrieve for every query
      * @throws IOException if there are problems when opening the queries file
      */
-    public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, int maxDatasetsRetrieved) throws IOException {
+    public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, String queryPath, int maxDatasetsRetrieved) throws IOException {
         //check for the indexPath
         if(indexPath == null || indexPath.isEmpty())
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -79,6 +80,15 @@ public class DatasetSearcher {
         File resultsDirectory = new File(resultsDirectoryPath);
         if(!resultsDirectory.isDirectory() || !resultsDirectory.exists())
             throw new IllegalArgumentException("The results directory specified does not exist");
+        this.resultDirectoryPath = resultsDirectoryPath;
+
+        //check for the query file path
+        if(queryPath == null || queryPath.isEmpty())
+            throw new IllegalArgumentException("The query path cannot be null or empty");
+
+        File queryFile = new File(queryPath);
+        if(!queryFile.isFile() || !queryFile.exists())
+            throw new IllegalArgumentException("The query path specified does not exist or is not a file");
 
         //read the queries
         queries = new QueriesReader().readQueries(queryPath);
@@ -94,15 +104,21 @@ public class DatasetSearcher {
      */
     public void searchInMetaData(String runID) throws ParseException, IOException {
 
+        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
+
         //specify the dataset fields where to search
         String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS};
 
         for (QualityQuery q:  queries) {
+            System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
             Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
-            writeResults(runID, queryID, docs);
+            System.out.println(docs.length);
+            writeResults(writer, runID, queryID, docs);
         }
+
+        writer.close();
     }
 
     /**
@@ -116,12 +132,18 @@ public class DatasetSearcher {
         //specify the dataset fields where to search
         String[] fields = {DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
 
+        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
+
         for (QualityQuery q:  queries) {
+            System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
             Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
-            writeResults(runID, queryID, docs);
+            writeResults(writer, runID, queryID, docs);
+            System.out.println(docs.length);
         }
+
+        writer.close();
     }
 
     /**
@@ -132,6 +154,8 @@ public class DatasetSearcher {
      */
     public void searchInAllInfo(String runID) throws ParseException, IOException {
 
+        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
+
         //specify the dataset fields where to search
         String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
 
@@ -139,24 +163,45 @@ public class DatasetSearcher {
             String queryID = q.getQueryID();
             Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
-            writeResults(runID, queryID, docs);
+            writeResults(writer, runID, queryID, docs);
         }
+
+        writer.close();
     }
 
     /**
      * This method will create the run output file
+     * @param writer PrintWriter object pointing to the run results file
      * @param runID string with the run identifier
      * @param queryID string the query identifier
      * @param docs array of ScoreDoc document retrieved
      * @throws IOException in case there are problems during the writing of the results
      */
-    public void writeResults(String runID, String queryID, ScoreDoc[] docs) throws FileNotFoundException {
-        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+queryID+".txt");
+    public void writeResults(PrintWriter writer, String runID, String queryID, ScoreDoc[] docs) throws IOException {
         for(int i=0; i<docs.length; i++){
-            writer.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", queryID, docs[i].doc, i, docs[i].score, runID);
+            String docID = indexReader.document(docs[i].doc, Collections.singleton(DatasetFields.ID)).get(DatasetFields.ID);
+            writer.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", queryID, docID, i, docs[i].score, runID);
+            writer.flush();
         }
-        writer.flush();
-        writer.close();
+    }
+
+    /**
+     * ONLY FOR DEBUG PURPOSES
+     */
+    public static void main(String[] args) throws IOException, ParseException {
+
+        String indexPath = "/media/manuel/Tesi/IndexJENA_RDFLib";
+        String resultPath = "/home/manuel/Tesi/ACORDAR/Run/EDS";
+        String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
+
+        Analyzer a = new StandardAnalyzer();
+        Similarity s = new BM25Similarity();
+
+        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 100);
+        searcher.searchInMetaData("BM25[m]");
+        searcher.searchInContent("BM25[c]");
+        searcher.searchInAllInfo("BM25[m+c]");
+
     }
 
 
