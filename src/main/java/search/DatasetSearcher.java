@@ -19,7 +19,9 @@ import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * This class will search for the best datasets that suit a given set of user queries
@@ -160,8 +162,45 @@ public class DatasetSearcher {
         String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
 
         for (QualityQuery q:  queries) {
+            System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
             Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+            ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
+            writeResults(writer, runID, queryID, docs);
+        }
+
+        writer.close();
+    }
+
+    /**
+     * This method will search only on all the dataset info (content and metadata)
+     * @param runID id of the run
+     * @throws ParseException if there are problems during the query parsing
+     * @throws IOException if the index searcher has some problems during the search in the index
+     */
+    public void searchInAllInfoBoost(String runID) throws ParseException, IOException {
+
+        //setting the query boosting weights
+        HashMap<String, Float> queryWeights = new HashMap<>();
+
+        queryWeights.put(DatasetFields.TITLE, 1f);
+        queryWeights.put(DatasetFields.DESCRIPTION, 0.9f);
+        queryWeights.put(DatasetFields.AUTHOR, 0.9f);
+        queryWeights.put(DatasetFields.TAGS, 0.6f);
+        queryWeights.put(DatasetFields.CLASSES, 0.2f);
+        queryWeights.put(DatasetFields.ENTITIES, 0.3f);
+        queryWeights.put(DatasetFields.LITERALS, 0.1f);
+        queryWeights.put(DatasetFields.PROPERTIES, 0.1f);
+
+        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
+
+        //specify the dataset fields where to search
+        String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
+
+        for (QualityQuery q:  queries) {
+            System.out.println("Searching for query: "+q.getQueryID());
+            String queryID = q.getQueryID();
+            Query query = CustomQueryBuilder.buildBoostedQuery(q.getValue(QueryFields.TEXT), analyzer, queryWeights);
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
             writeResults(writer, runID, queryID, docs);
         }
@@ -198,9 +237,10 @@ public class DatasetSearcher {
         Similarity s = new BM25Similarity();
 
         DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 100);
-        searcher.searchInMetaData("BM25[m]");
-        searcher.searchInContent("BM25[c]");
-        searcher.searchInAllInfo("BM25[m+c]");
+        //searcher.searchInMetaData("BM25[m]");
+        //searcher.searchInContent("BM25[c]");
+        //searcher.searchInAllInfo("BM25[m+c]");
+        searcher.searchInAllInfoBoost("BM25Boost[m+c]");
 
     }
 
