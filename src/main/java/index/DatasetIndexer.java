@@ -1,9 +1,8 @@
 package index;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
+
+import java.io.*;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -16,15 +15,17 @@ import parse.DatasetFields;
 import parse.DatasetReader;
 import utils.DatasetContent;
 import utils.DatasetMetaData;
+import java.nio.charset.StandardCharsets;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.Reader;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Scanner;
 
 /**
- * This class will wrap the indexing phase of EDS
+ * This class will execute the indexing phase of EDS
  *
  * @author Manuel Barusco
  * @version 1.0
@@ -99,6 +100,7 @@ public class DatasetIndexer {
 
         HashSet<String> skipDatasets = new HashSet<>();
         skipDatasets.add("dataset-11580");
+        skipDatasets.add("dataset-15243");
 
         for(File dataset: datasets){
 
@@ -114,20 +116,56 @@ public class DatasetIndexer {
 
                     DatasetReader reader = new DatasetReader(dataset.getAbsolutePath());
                     DatasetMetaData metaData = reader.getMetaData();
+
+                    //if the dataset is mined from RDFLib or Jena we recover the json file for the content
+                    //else the two variables have null value
                     DatasetContent contentJena = reader.getContentJena();
                     DatasetContent contentRDFLib = reader.getContentRDFLib();
 
-                    indexDataset(metaData, contentJena, contentRDFLib);
-                    datasetCount++;
+                    //check if the dataset is mined from LightRDF
+                    Scanner entitiesFile = null;
+                    Scanner classesFile = null;
+                    Scanner literalsFile = null;
+                    Scanner propertiesFile = null;
+
+                    File entities = new File(dataset.getPath()+"/entities_lightrdf.txt");
+                    File classes = new File(dataset.getPath()+"/classes_lightrdf.txt");
+                    File literals = new File(dataset.getPath()+"/literals_lightrdf.txt");
+                    File properties = new File(dataset.getPath()+"/properties_lightrdf.txt");
+
+                    if(entities.exists()){
+                        entitiesFile = new Scanner(entities);
+                        classesFile = new Scanner(classes);
+                        propertiesFile = new Scanner(properties);
+                        literalsFile = new Scanner(literals);
+                    }
+
+                    try {
+                        indexDataset(metaData, contentJena, contentRDFLib, entitiesFile, classesFile, propertiesFile, literalsFile);
+
+                    } catch (OutOfMemoryError e ){
+                        System.out.println("Out of Memory in dataset:"+dataset.getName());
+
+                    }
+
+                    //force to release memory
+                    contentRDFLib = null;
+                    contentJena = null;
+                    System.gc();
+
+                    //update the dataset_metadata.json file with the "indexed" field
+                    updateMetadata(dataset);
 
                     //TODO: tune the parameter
-                    if (datasetCount % 50 == 0)
-                        writer.commit();
+                    //if (datasetCount % 10 == 0)
+                    writer.commit();
 
                 }
 
-                if (datasetCount % 1000 == 0)
+                if (datasetCount % 100 == 0)
                     System.out.println("Indexed: "+datasetCount);
+
+                datasetCount++;
 
             }
         }
@@ -153,60 +191,128 @@ public class DatasetIndexer {
     }
 
     /**
+     * This method update the dataset_metadata.json file after the dataset indexing
+     * @param dataset File object that points to the dataset directory
+     * @throws IOException if there are problems with the dataset_metadata.json file of the dataset
+     */
+    private void updateMetadata(File dataset){
+        JsonElement json = null;
+        try {
+            Reader reader = new FileReader(dataset.getPath()+"/dataset_metadata.json", StandardCharsets.UTF_8);
+            json = JsonParser.parseReader(reader);
+            reader.close();
+        } catch (IOException e) {
+            System.out.println("Error while reading the dataset_metadata.json file: "+e);
+        }
+
+        //get the JsonObject to udpate and update
+        JsonObject datasetMetadata = json.getAsJsonObject();
+        datasetMetadata.addProperty("indexed", true);
+
+        try{
+            FileWriter datasetMetadataFile=new FileWriter(dataset.getPath()+"/dataset_metadata.json", StandardCharsets.UTF_8);
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            gson.toJson(datasetMetadata, datasetMetadataFile);
+            datasetMetadataFile.close();
+        } catch (IOException e){
+            System.out.println("Error while updating the dataset_metadata.json file: "+e);
+        }
+    }
+
+    /**
      * This method will index a single dataset
      *
      * @param metaData a DatasetMetaData object with all the dataset meta info
      * @param contentJena a DatasetContent object with all the dataset content extracted from JENA
      * @param contentRDFLib a DatasetContent object with all the dataset content extracted from RDFLib
+     * @param entitiesFile file with the entities extracted from LightRDF
+     * @param classesFile file with the classes extracted from LightRDF
+     * @param propertiesFile file with the properties extracted from LightRDF
+     * @param literalsFile file with the literals extracted from LightRDF
      * @throws IOException if there are problems during the index writing of the dataset
      */
-    private void indexDataset(DatasetMetaData metaData, DatasetContent contentJena, DatasetContent contentRDFLib) throws IOException {
+    private void indexDataset(DatasetMetaData metaData, DatasetContent contentJena, DatasetContent contentRDFLib, Scanner entitiesFile, Scanner classesFile, Scanner propertiesFile, Scanner literalsFile) throws IOException {
         Document dataset = new Document();
 
-        dataset.add(new DatasetIdField(DatasetFields.ID, metaData.dataset_id));
-        dataset.add(new DatasetField(DatasetFields.TITLE, metaData.title));
+        dataset.add(new MetadataField(DatasetFields.ID, metaData.dataset_id));
+        dataset.add(new MetadataField(DatasetFields.TITLE, metaData.title));
 
         if (metaData.description != null)
-            dataset.add(new DatasetField(DatasetFields.DESCRIPTION, metaData.description));
+            dataset.add(new MetadataField(DatasetFields.DESCRIPTION, metaData.description));
 
         if (metaData.author!=null)
-            dataset.add(new DatasetField(DatasetFields.AUTHOR, metaData.author));
+            dataset.add(new MetadataField(DatasetFields.AUTHOR, metaData.author));
 
         //split the tags
         String stringTags = metaData.tags;
         String[] tags = stringTags.split(":");
 
         for(String tag: tags)
-            dataset.add(new DatasetField(DatasetFields.TAGS, tag));
+            dataset.add(new MetadataField(DatasetFields.TAGS, tag));
 
-        for(String entity: contentJena.entities)
-            dataset.add(new DatasetField(DatasetFields.ENTITIES, entity));
+        //add the content extracted by JENA
 
-        for(String dClass: contentJena.classes)
-            dataset.add(new DatasetField(DatasetFields.CLASSES, dClass));
+        if (contentJena != null) {
+            for (String entity : contentJena.entities)
+                dataset.add(new DataField(DatasetFields.ENTITIES, entity));
 
-        for(String literal: contentJena.literals)
-            dataset.add(new DatasetField(DatasetFields.LITERALS, literal));
+            for (String dClass : contentJena.classes)
+                dataset.add(new DataField(DatasetFields.CLASSES, dClass));
 
-        for(String property: contentJena.properties)
-            dataset.add(new DatasetField(DatasetFields.PROPERTIES, property));
+            for (String literal : contentJena.literals)
+                dataset.add(new DataField(DatasetFields.LITERALS, literal));
+
+            for (String property : contentJena.properties)
+                dataset.add(new DataField(DatasetFields.PROPERTIES, property));
+        }
 
         //release memory
         contentJena = null;
         System.gc();
 
+        //add the content extracted by RDFLib
+
         if(contentRDFLib!=null){
             for(String entity: contentRDFLib.entities)
-                dataset.add(new DatasetField(DatasetFields.ENTITIES, entity));
+                dataset.add(new DataField(DatasetFields.ENTITIES, entity));
 
             for(String dClass: contentRDFLib.classes)
-                dataset.add(new DatasetField(DatasetFields.CLASSES, dClass));
+                dataset.add(new DataField(DatasetFields.CLASSES, dClass));
 
             for(String literal: contentRDFLib.literals)
-                dataset.add(new DatasetField(DatasetFields.LITERALS, literal));
+                dataset.add(new DataField(DatasetFields.LITERALS, literal));
 
             for(String property: contentRDFLib.properties)
-                dataset.add(new DatasetField(DatasetFields.PROPERTIES, property));
+                dataset.add(new DataField(DatasetFields.PROPERTIES, property));
+        }
+
+        //release memory
+        contentRDFLib = null;
+        System.gc();
+
+        //check if there are elements from LightRDF
+
+        if(entitiesFile != null){
+            while(entitiesFile.hasNext()){
+                dataset.add(new DataField(DatasetFields.ENTITIES, entitiesFile.nextLine().replace("\n", "")));
+            }
+
+            while(classesFile.hasNext()){
+                dataset.add(new DataField(DatasetFields.CLASSES, classesFile.nextLine().replace("\n", "")));
+            }
+
+            while(literalsFile.hasNext()){
+                dataset.add(new DataField(DatasetFields.LITERALS, literalsFile.nextLine().replace("\n", "")));
+            }
+
+            while(propertiesFile.hasNext()){
+                dataset.add(new DataField(DatasetFields.PROPERTIES, propertiesFile.nextLine().replace("\n", "")));
+            }
+            entitiesFile.close();
+            classesFile.close();
+            literalsFile.close();
+            propertiesFile.close();
+
         }
 
         //System.out.println((Runtime.getRuntime().totalMemory() / (1024*1024)) - (Runtime.getRuntime().freeMemory() / (1024*1024) ));
@@ -223,7 +329,7 @@ public class DatasetIndexer {
      */
     public static void main(String[] args) throws IOException {
 
-        String indexPath = "/media/manuel/Tesi/IndexJENA_RDFLib";
+        String indexPath = "/media/manuel/Tesi/Index";
         String datasetsDirectoryPath = "/media/manuel/Tesi/Datasets";
         //String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Datasets";
 

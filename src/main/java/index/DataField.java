@@ -4,16 +4,16 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 
-public class DatasetIdField extends Field {
+public class DataField extends Field {
 
     private static final FieldType type = new FieldType();
 
     static {
-        type.setStored(true);
+        type.setStored(false);
         type.setTokenized(true);
-        type.setStoreTermVectors(true);
-        type.setStoreTermVectorPositions(true);
-        type.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        type.setStoreTermVectors(false);
+        type.setStoreTermVectorPositions(false);
+        type.setIndexOptions(IndexOptions.DOCS);
     }
 
     /**
@@ -21,7 +21,7 @@ public class DatasetIdField extends Field {
      * @param key name of the field
      * @param value value of the field
      */
-    public DatasetIdField(final String key, final String value) {
+    public DataField(final String key, final String value) {
         super(key, value, type);
     }
 }

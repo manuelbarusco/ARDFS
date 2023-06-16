@@ -56,12 +56,17 @@ public class DatasetReader {
      */
     public DatasetContent getContentJena() throws IOException {
 
-        FileReader contentReader = new FileReader(datasetDirectoryPath+"/dataset_content_jena.json");
-        Gson gson = new Gson();
-        DatasetContent content = gson.fromJson(contentReader, DatasetContent.class);
-        contentReader.close();
+        //check for the presence of the dataset_content_jena.json file
+        File contentFileJena = new File(datasetDirectoryPath+"/dataset_content_jena.json");
+        if (contentFileJena.exists()){
+            FileReader contentReader = new FileReader(datasetDirectoryPath+"/dataset_content_jena.json");
+            Gson gson = new Gson();
+            DatasetContent contentJena = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
 
-        return content;
+            return contentJena;
+        }
+        return null;
     }
 
 
@@ -83,5 +88,6 @@ public class DatasetReader {
         }
         return null;
     }
+
 
 }

@@ -11,17 +11,17 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
 import parse.DatasetFields;
+import utils.BoostWeights;
 
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * This class will search for the best datasets that suit a given set of user queries
@@ -175,22 +175,11 @@ public class DatasetSearcher {
     /**
      * This method will search only on all the dataset info (content and metadata)
      * @param runID id of the run
+     * @param queryWeights boost weights for the various query fields
      * @throws ParseException if there are problems during the query parsing
      * @throws IOException if the index searcher has some problems during the search in the index
      */
-    public void searchInAllInfoBoost(String runID) throws ParseException, IOException {
-
-        //setting the query boosting weights
-        HashMap<String, Float> queryWeights = new HashMap<>();
-
-        queryWeights.put(DatasetFields.TITLE, 1f);
-        queryWeights.put(DatasetFields.DESCRIPTION, 0.9f);
-        queryWeights.put(DatasetFields.AUTHOR, 0.9f);
-        queryWeights.put(DatasetFields.TAGS, 0.6f);
-        queryWeights.put(DatasetFields.CLASSES, 0.2f);
-        queryWeights.put(DatasetFields.ENTITIES, 0.3f);
-        queryWeights.put(DatasetFields.LITERALS, 0.1f);
-        queryWeights.put(DatasetFields.PROPERTIES, 0.1f);
+    public void searchInAllInfoBoost(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
 
         PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
 
@@ -217,10 +206,14 @@ public class DatasetSearcher {
      * @throws IOException in case there are problems during the writing of the results
      */
     public void writeResults(PrintWriter writer, String runID, String queryID, ScoreDoc[] docs) throws IOException {
+        HashSet<String> docsIds = new HashSet<>();
         for(int i=0; i<docs.length; i++){
             String docID = indexReader.document(docs[i].doc, Collections.singleton(DatasetFields.ID)).get(DatasetFields.ID);
-            writer.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", queryID, docID, i, docs[i].score, runID);
-            writer.flush();
+            if (!docsIds.contains(docID)){
+                writer.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", queryID, docID, i, docs[i].score, runID);
+                writer.flush();
+                docsIds.add(docID);
+            }
         }
     }
 
@@ -229,18 +222,32 @@ public class DatasetSearcher {
      */
     public static void main(String[] args) throws IOException, ParseException {
 
-        String indexPath = "/media/manuel/Tesi/IndexJENA_RDFLib";
+        String indexPath = "/media/manuel/Tesi/Index";
         String resultPath = "/home/manuel/Tesi/ACORDAR/Run/EDS";
         String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
 
         Analyzer a = new StandardAnalyzer();
-        Similarity s = new BM25Similarity();
 
-        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 100);
-        //searcher.searchInMetaData("BM25[m]");
-        //searcher.searchInContent("BM25[c]");
-        //searcher.searchInAllInfo("BM25[m+c]");
-        searcher.searchInAllInfoBoost("BM25Boost[m+c]");
+        Similarity s = new BM25Similarity();
+        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher.searchInMetaData("BM25[m]");
+        searcher.searchInContent("BM25[c]");
+        searcher.searchInAllInfo("BM25[m+c]");
+        searcher.searchInAllInfoBoost("BM25Boost[m+c]", BoostWeights.BM25BoostWeights);
+
+        s = new ClassicSimilarity();
+        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher.searchInMetaData("TF-IDF[m]");
+        searcher.searchInContent("TF-IDF[c]");
+        searcher.searchInAllInfo("TF-IDF[m+c]");
+        searcher.searchInAllInfoBoost("TF-IDFBoost[m+c]", BoostWeights.TFIDFBoostWeights);
+
+        s = new LMDirichletSimilarity();
+        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher.searchInMetaData("LMD[m]");
+        searcher.searchInContent("LMD[c]");
+        searcher.searchInAllInfo("LMD[m+c]");
+        searcher.searchInAllInfoBoost("LMDBoost[m+c]", BoostWeights.LMDBoostWeights);
 
     }
 
