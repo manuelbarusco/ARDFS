@@ -101,10 +101,11 @@ public class DatasetSearcher {
     /**
      * This method will search only on the dataset meta-data fields
      * @param runID id of the run
+     * @param queryWeights boost weights for the various query fields if we want to use boosting
      * @throws ParseException if there are problems during the query parsing
      * @throws IOException if the index searcher has some problems during the search in the index
      */
-    public void searchInMetaData(String runID) throws ParseException, IOException {
+    public void searchInMetaData(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
 
         PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
 
@@ -114,9 +115,16 @@ public class DatasetSearcher {
         for (QualityQuery q:  queries) {
             System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
-            Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
+            Query query;
+
+            //check for boosting parameters
+            if (queryWeights != null)
+                query = CustomQueryBuilder.buildBoostedQuery(q.getValue(QueryFields.TEXT), analyzer, queryWeights);
+            else
+                query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
-            System.out.println(docs.length);
             writeResults(writer, runID, queryID, docs);
         }
 
@@ -126,10 +134,11 @@ public class DatasetSearcher {
     /**
      * This method will search only on the dataset content
      * @param runID id of the run
+     * @param queryWeights boost weights for the various query fields if we want to use boosting
      * @throws ParseException if there are problems during the query parsing
      * @throws IOException if the index searcher has some problems during the search in the index
      */
-    public void searchInContent(String runID) throws ParseException, IOException {
+    public void searchInContent(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
 
         //specify the dataset fields where to search
         String[] fields = {DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
@@ -139,7 +148,15 @@ public class DatasetSearcher {
         for (QualityQuery q:  queries) {
             System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
-            Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
+            Query query;
+
+            //check for boosting parameters
+            if (queryWeights != null)
+                query = CustomQueryBuilder.buildBoostedQuery(q.getValue(QueryFields.TEXT), analyzer, queryWeights);
+            else
+                query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
             writeResults(writer, runID, queryID, docs);
             System.out.println(docs.length);
@@ -150,11 +167,15 @@ public class DatasetSearcher {
 
     /**
      * This method will search only on all the dataset info (content and metadata)
+     * This method can be used with and without boosting by passing or not the queryWeights
+     * param.
+     *
      * @param runID id of the run
+     * @param queryWeights boost weights for the various query fields if we want to use boosting
      * @throws ParseException if there are problems during the query parsing
      * @throws IOException if the index searcher has some problems during the search in the index
      */
-    public void searchInAllInfo(String runID) throws ParseException, IOException {
+    public void searchInAllInfo(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
 
         PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
 
@@ -164,7 +185,15 @@ public class DatasetSearcher {
         for (QualityQuery q:  queries) {
             System.out.println("Searching for query: "+q.getQueryID());
             String queryID = q.getQueryID();
-            Query query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
+            Query query;
+
+            //check for boosting parameters
+            if (queryWeights != null)
+                query = CustomQueryBuilder.buildBoostedQuery(q.getValue(QueryFields.TEXT), analyzer, queryWeights);
+            else
+                query = CustomQueryBuilder.buildBooleanQuery(fields, analyzer, q.getValue(QueryFields.TEXT));
+
             ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
             writeResults(writer, runID, queryID, docs);
         }
@@ -172,30 +201,6 @@ public class DatasetSearcher {
         writer.close();
     }
 
-    /**
-     * This method will search only on all the dataset info (content and metadata)
-     * @param runID id of the run
-     * @param queryWeights boost weights for the various query fields
-     * @throws ParseException if there are problems during the query parsing
-     * @throws IOException if the index searcher has some problems during the search in the index
-     */
-    public void searchInAllInfoBoost(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
-
-        PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
-
-        //specify the dataset fields where to search
-        String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
-
-        for (QualityQuery q:  queries) {
-            System.out.println("Searching for query: "+q.getQueryID());
-            String queryID = q.getQueryID();
-            Query query = CustomQueryBuilder.buildBoostedQuery(q.getValue(QueryFields.TEXT), analyzer, queryWeights);
-            ScoreDoc[] docs = indexSearcher.search(query, maxDatasetsRetrieved).scoreDocs;
-            writeResults(writer, runID, queryID, docs);
-        }
-
-        writer.close();
-    }
 
     /**
      * This method will create the run output file
@@ -223,32 +228,40 @@ public class DatasetSearcher {
     public static void main(String[] args) throws IOException, ParseException {
 
         String indexPath = "/media/manuel/Tesi/Index";
-        String resultPath = "/home/manuel/Tesi/ACORDAR/Run/EDS";
+        String resultPath = "/home/manuel/Tesi/ACORDAR/Run/ARDFS";
         String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
 
         Analyzer a = new StandardAnalyzer();
 
-        Similarity s = new BM25Similarity();
+        // ---------- LMD ------------ //
+        Similarity s = new LMDirichletSimilarity();
         DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
-        searcher.searchInMetaData("BM25[m]");
-        searcher.searchInContent("BM25[c]");
-        searcher.searchInAllInfo("BM25[m+c]");
-        searcher.searchInAllInfoBoost("BM25Boost[m+c]", BoostWeights.BM25BoostWeights);
+        searcher.searchInMetaData("LMD[m]", null);
+        searcher.searchInContent("LMD[d]", null);
+        searcher.searchInAllInfo("LMD[m+d]", null);
+        searcher.searchInMetaData("LMDBoost[m]", BoostWeights.LMDMetadataBoostWeights);
+        searcher.searchInContent("LMDBoost[d]", BoostWeights.LMDDataBoostWeights);
+        searcher.searchInAllInfo("LMDBoost[m+d]", BoostWeights.LMDBoostWeights);
 
+        // ---------- BM25 ------------ //
+        s = new BM25Similarity();
+        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher.searchInMetaData("BM25[m]", null);
+        searcher.searchInContent("BM25[d]", null);
+        searcher.searchInAllInfo("BM25[m+d]", null);
+        searcher.searchInMetaData("BM25Boost[m]", BoostWeights.BM25MetadataBoostWeights);
+        searcher.searchInContent("BM25Boost[d]", BoostWeights.BM25DataBoostWeights);
+        searcher.searchInAllInfo("BM25Boost[m+d]", BoostWeights.BM25BoostWeights);
+
+        // ---------- TFIDF  ------------ //
         s = new ClassicSimilarity();
         searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
-        searcher.searchInMetaData("TF-IDF[m]");
-        searcher.searchInContent("TF-IDF[c]");
-        searcher.searchInAllInfo("TF-IDF[m+c]");
-        searcher.searchInAllInfoBoost("TF-IDFBoost[m+c]", BoostWeights.TFIDFBoostWeights);
-
-        s = new LMDirichletSimilarity();
-        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
-        searcher.searchInMetaData("LMD[m]");
-        searcher.searchInContent("LMD[c]");
-        searcher.searchInAllInfo("LMD[m+c]");
-        searcher.searchInAllInfoBoost("LMDBoost[m+c]", BoostWeights.LMDBoostWeights);
-
+        searcher.searchInMetaData("TFIDF[m]", null);
+        searcher.searchInContent("TFIDF[d]", null);
+        searcher.searchInAllInfo("TFIDF[m+d]", null);
+        searcher.searchInMetaData("TFIDFBoost[m]", BoostWeights.TFIDFMetadataBoostWeights);
+        searcher.searchInContent("TFIDFBoost[d]", BoostWeights.TFIDFDataBoostWeights);
+        searcher.searchInAllInfo("TFIDFBoost[m+d]", BoostWeights.TFIDFBoostWeights);
     }
 
 
