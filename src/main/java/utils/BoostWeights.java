@@ -18,7 +18,10 @@ public class BoostWeights {
 
     static {
 
-        String[] queryFields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.ENTITIES, DatasetFields.LITERALS, DatasetFields.CLASSES, DatasetFields.PROPERTIES};
+        String[] queryFields = {
+                DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS,
+                DatasetFields.ENTITIES, DatasetFields.LITERALS, DatasetFields.CLASSES, DatasetFields.PROPERTIES
+        };
         float[] BM25Weights = {1.0f, 0.9f, 0.9f, 0.6f, 0.2f, 0.3f, 0.1f, 0.1f};
         float[] TFIDFWeights = {1.0f, 0.7f, 0.9f, 0.9f, 0.8f, 0.5f, 0.1f, 0.4f};
         float[] LMDWeights = {1.0f, 0.9f, 0.1f, 1.0f, 0.2f, 0.3f, 0.2f, 0.1f};

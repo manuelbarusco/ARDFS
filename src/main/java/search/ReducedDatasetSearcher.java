@@ -1,9 +1,7 @@
 package search;
 
 import analyze.CustomAnalyzer;
-import index.DatasetIndexer;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -19,19 +17,23 @@ import org.apache.lucene.store.FSDirectory;
 import parse.DatasetFields;
 import utils.BoostWeights;
 
-import java.io.*;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 
 /**
  * This class will search for the best datasets that suit a given set of user queries
+ * by searching in the reduced index
  *
  * @author Manuel Barusco
  * @version 1.0
  * @since 1.0
  */
-public class DatasetSearcher {
+public class ReducedDatasetSearcher {
 
     private IndexReader indexReader;            //Lucene object for index reading
     private IndexSearcher indexSearcher;        //Lucene object for index searching
@@ -51,7 +53,7 @@ public class DatasetSearcher {
      * @param maxDatasetsRetrieved max number of datasets to retrieve for every query
      * @throws IOException if there are problems when opening the queries file
      */
-    public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, String queryPath, int maxDatasetsRetrieved) throws IOException {
+    public ReducedDatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, String queryPath, int maxDatasetsRetrieved) throws IOException {
         //check for the indexPath
         if(indexPath == null || indexPath.isEmpty())
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -141,8 +143,8 @@ public class DatasetSearcher {
      */
     public void searchInContent(String runID, HashMap<String, Float> queryWeights) throws ParseException, IOException {
 
-        //specify the dataset fields where to search
-        String[] fields = {DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
+        //specify the dataset fields where to search, here we have only two fields
+        String[] fields = {DatasetFields.ENTITIES, DatasetFields.LITERALS};
 
         PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
 
@@ -180,7 +182,7 @@ public class DatasetSearcher {
         PrintWriter writer = new PrintWriter(resultDirectoryPath+"/"+runID+".txt");
 
         //specify the dataset fields where to search
-        String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
+        String[] fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.ENTITIES, DatasetFields.LITERALS};
 
         for (QualityQuery q:  queries) {
             System.out.println("Searching for query: "+q.getQueryID());
@@ -211,8 +213,8 @@ public class DatasetSearcher {
      * @param queryWeightsAllFields boost weights for search in all fields
      */
     public void searchQuery(String query_text, HashMap<String, Float> queryWeightsData, HashMap<String, Float> queryWeightsMetadata, HashMap<String, Float> queryWeightsAllFields) throws ParseException, IOException {
-        String[] data_fields = {DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
-        String[] all_fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.CLASSES, DatasetFields.ENTITIES, DatasetFields.PROPERTIES, DatasetFields.LITERALS};
+        String[] data_fields = {DatasetFields.ENTITIES, DatasetFields.LITERALS};
+        String[] all_fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS, DatasetFields.ENTITIES, DatasetFields.LITERALS};
         String[] metadata_fields = {DatasetFields.TITLE, DatasetFields.DESCRIPTION, DatasetFields.AUTHOR, DatasetFields.TAGS};
 
         Query queryData = CustomQueryBuilder.buildBoostedQuery(query_text, analyzer, queryWeightsData);
@@ -269,48 +271,40 @@ public class DatasetSearcher {
      */
     public static void main(String[] args) throws IOException, ParseException {
 
-        String indexPath = "/media/manuel/Tesi/Index/Index_Stop_OnlyJENA";
+        String indexPath = "/media/manuel/Tesi/Index/Index_HRv2_Stop_only_clean";
         String resultPath = "/home/manuel/Tesi/ACORDAR/Run/ARDFS";
         String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
         Analyzer a = CustomAnalyzer.getStopwordsAnalyzer();
 
-        /*
         Similarity s = new BM25Similarity();
-        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
-        searcher.searchQuery("Antitrust Cases Pending", BoostWeights.BM25DataBoostWeights, BoostWeights.BM25MetadataBoostWeights, BoostWeights.BM25BoostWeights );
-*/
+        ReducedDatasetSearcher searcher = new ReducedDatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher.searchQuery("Debt Rescheduling", BoostWeights.BM25DataBoostWeights, BoostWeights.BM25MetadataBoostWeights, BoostWeights.BM25BoostWeights );
 
+        /*
 
         // ---------- LMD ------------ //
         Similarity s = new LMDirichletSimilarity();
-        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        ReducedDatasetSearcher searcher = new ReducedDatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
         searcher.searchInMetaData("LMD[m]", null);
         searcher.searchInContent("LMD[d]", null);
         searcher.searchInAllInfo("LMD[m+d]", null);
-        searcher.searchInMetaData("LMDBoost[m]", BoostWeights.LMDMetadataBoostWeights);
-        searcher.searchInContent("LMDBoost[d]", BoostWeights.LMDDataBoostWeights);
-        searcher.searchInAllInfo("LMDBoost[m+d]", BoostWeights.LMDBoostWeights);
 
         // ---------- BM25 ------------ //
         s = new BM25Similarity();
-        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher = new ReducedDatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
         searcher.searchInMetaData("BM25[m]", null);
         searcher.searchInContent("BM25[d]", null);
         searcher.searchInAllInfo("BM25[m+d]", null);
-        searcher.searchInMetaData("BM25Boost[m]", BoostWeights.BM25MetadataBoostWeights);
-        searcher.searchInContent("BM25Boost[d]", BoostWeights.BM25DataBoostWeights);
-        searcher.searchInAllInfo("BM25Boost[m+d]", BoostWeights.BM25BoostWeights);
 
         // ---------- TFIDF  ------------ //
         s = new ClassicSimilarity();
-        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher = new ReducedDatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
         searcher.searchInMetaData("TFIDF[m]", null);
         searcher.searchInContent("TFIDF[d]", null);
         searcher.searchInAllInfo("TFIDF[m+d]", null);
-        searcher.searchInMetaData("TFIDFBoost[m]", BoostWeights.TFIDFMetadataBoostWeights);
-        searcher.searchInContent("TFIDFBoost[d]", BoostWeights.TFIDFDataBoostWeights);
-        searcher.searchInAllInfo("TFIDFBoost[m+d]", BoostWeights.TFIDFBoostWeights);
 
+
+         */
     }
 
 

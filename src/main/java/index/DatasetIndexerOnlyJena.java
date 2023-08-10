@@ -2,10 +2,7 @@ package index;
 
 import analyze.CustomAnalyzer;
 import com.google.gson.*;
-
-import java.io.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -16,12 +13,12 @@ import parse.DatasetFields;
 import parse.DatasetReader;
 import utils.DatasetContent;
 import utils.DatasetMetaData;
-import java.nio.charset.StandardCharsets;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.Reader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Scanner;
 
@@ -33,7 +30,7 @@ import java.util.Scanner;
  * @since 1.0
  */
 
-public class DatasetIndexer {
+public class DatasetIndexerOnlyJena {
 
     private File indexDirectory;                        //File object to the index directory
     private IndexWriter writer;                         //Lucene object for creating an index
@@ -51,7 +48,7 @@ public class DatasetIndexer {
      * @param resume boolean that indicates if we have to resume an indexing process
      * @param no_empty_datasets boolean that indicates if we want to ignore the empty datasets
      */
-    public DatasetIndexer(String indexPath, Similarity similarity, Analyzer analyzer, boolean resume, boolean no_empty_datasets){
+    public DatasetIndexerOnlyJena(String indexPath, Similarity similarity, Analyzer analyzer, boolean resume, boolean no_empty_datasets){
         //check for the indexPath
         if(indexPath.isEmpty() || indexPath == null)
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -189,7 +186,7 @@ public class DatasetIndexer {
                     //if the dataset is mined from RDFLib or Jena we recover the json file for the content
                     //else the two variables have null value
                     DatasetContent contentJena = reader.getContentJena();
-                    DatasetContent contentRDFLib = reader.getContentRDFLib();
+                    DatasetContent contentRDFLib = null;
 
                     //check if the dataset is mined from LightRDF
                     Scanner entitiesFile = null;
@@ -414,7 +411,7 @@ public class DatasetIndexer {
      */
     public static void main(String[] args) throws IOException {
 
-        String indexPath = "/media/manuel/Tesi/Index/Index_Stop";
+        String indexPath = "/media/manuel/Tesi/Index/Index_Stop_OnlyJENA";
         String datasetsDirectoryPath = "/media/manuel/Tesi/Datasets";
         //String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Datasets";
 
@@ -423,7 +420,7 @@ public class DatasetIndexer {
 
         boolean resume = false;
         boolean no_empty_dataset = false;
-        DatasetIndexer indexer = new DatasetIndexer(indexPath, s, a, resume, no_empty_dataset);
+        DatasetIndexerOnlyJena indexer = new DatasetIndexerOnlyJena(indexPath, s, a, resume, no_empty_dataset);
 
         indexer.indexDatasets(datasetsDirectoryPath);
 

@@ -89,5 +89,45 @@ public class DatasetReader {
         return null;
     }
 
+    /**
+     * This method will return the dataset content extracted by RDFLibHR extractor
+     * @return object of type DatasetContent with the data
+     * @throws IOException if there are problems when closing the contentReadr object
+     */
+    public DatasetContent getContentRDFLibHR() throws IOException {
+        String path = datasetDirectoryPath+"/dataset_content_rdflibhr.json";
+        //check for the presence of the dataset_content_rdflibhr.json file
+        File contentFileRDFLib = new File(path);
+        if (contentFileRDFLib.exists()){
+            FileReader contentReader = new FileReader(path);
+            Gson gson = new Gson();
+            DatasetContent contentRDFLib = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
+
+            return contentRDFLib;
+        }
+        return null;
+    }
+
+    /**
+     * This method will return the dataset content extracted by RDFLibHR and cleaned
+     * @return object of type DatasetContent with the data
+     * @throws IOException if there are problems when closing the contentReadr object
+     */
+    public DatasetContent getContentRDFLibHRClean() throws IOException {
+        String path = datasetDirectoryPath+"/dataset_content_rdflibhr_clean.json";
+        //check for the presence of the dataset_content_rdflibhr_clean.json file
+        File contentFileRDFLibClean = new File(path);
+        if (contentFileRDFLibClean.exists()){
+            FileReader contentReader = new FileReader(path);
+            Gson gson = new Gson();
+            DatasetContent contentRDFLibClean = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
+
+            return contentRDFLibClean;
+        }
+        return null;
+    }
+
 
 }
