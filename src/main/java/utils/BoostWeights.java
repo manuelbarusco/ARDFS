@@ -15,6 +15,9 @@ public class BoostWeights {
     public static final HashMap<String, Float> LMDBoostWeights;
     public static final HashMap<String, Float> LMDMetadataBoostWeights;
     public static final HashMap<String, Float> LMDDataBoostWeights;
+    public static final HashMap<String, Float> FSDMBoostWeights;
+    public static final HashMap<String, Float> FSDMDataBoostWeights;
+    public static final HashMap<String, Float> FSDMMetadataBoostWeights;
 
     static {
 
@@ -85,6 +88,21 @@ public class BoostWeights {
             LMDDataBoostWeights.put(queryFields[i], LMDContentWeights[j]);
         }
 
+        //setting the query boosting weights for LMD
+        FSDMBoostWeights = new HashMap<>();
+        for(int i = 0; i < queryFields.length; i++){
+            FSDMBoostWeights.put(queryFields[i], FSDMWeights[i]);
+        }
+
+        FSDMMetadataBoostWeights = new HashMap<>();
+        for(int i = 0, j = 0; i < 4; i++, j++){
+            FSDMMetadataBoostWeights.put(queryFields[i], FSDMMetadataWeights[j]);
+        }
+
+        FSDMDataBoostWeights = new HashMap<>();
+        for(int i = 4, j = 0; i < queryFields.length; i++, j++){
+            FSDMDataBoostWeights.put(queryFields[i], FSDMContentWeights[j]);
+        }
     }
 
 }

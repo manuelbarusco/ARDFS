@@ -1,7 +1,9 @@
-package index;
+package index.experiments;
 
 import analyze.CustomAnalyzer;
 
+import index.DataField;
+import index.MetadataField;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;

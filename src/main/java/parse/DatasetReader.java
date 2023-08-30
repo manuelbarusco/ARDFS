@@ -69,6 +69,67 @@ public class DatasetReader {
         return null;
     }
 
+    /**
+     * This method will return the dataset content extracted by JENA with triple deduplication
+     * @return object of type DatasetContent
+     * @throws IOException if there are problems when closing the contentReadr object
+     */
+    public DatasetContent getContentJenaDeduplication() throws IOException {
+
+        //check for the presence of the dataset_content_jena.json file
+        File contentFileJena = new File(datasetDirectoryPath+"/dataset_content_jena_deduplication.json");
+        if (contentFileJena.exists()){
+            FileReader contentReader = new FileReader(datasetDirectoryPath+"/dataset_content_jena_deduplication.json");
+            Gson gson = new Gson();
+            DatasetContent contentJena = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
+
+            return contentJena;
+        }
+        return null;
+    }
+
+    /**
+     * This method will return the dataset content extracted by JENA with triple deduplication and labels
+     * @return object of type DatasetContent
+     * @throws IOException if there are problems when closing the contentReadr object
+     */
+    public DatasetContent getContentJenaDeduplicationLabels() throws IOException {
+
+        //check for the presence of the dataset_content_jena.json file
+        File contentFileJena = new File(datasetDirectoryPath+"/dataset_content_jena_deduplication_labels.json");
+        if (contentFileJena.exists()){
+            FileReader contentReader = new FileReader(datasetDirectoryPath+"/dataset_content_jena_deduplication_labels.json");
+            Gson gson = new Gson();
+            DatasetContent contentJena = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
+
+            return contentJena;
+        }
+        return null;
+    }
+
+
+    /**
+     * This method will return the dataset content extracted by JENA
+     * @return object of type DatasetContent
+     * @throws IOException if there are problems when closing the contentReadr object
+     */
+    public DatasetContent getContentLightRDF() throws IOException {
+
+        //check for the presence of the dataset_content_jena.json file
+        File contentFileLightRDF = new File(datasetDirectoryPath+"/dataset_content_lightrdf.json");
+        if (contentFileLightRDF.exists()){
+            FileReader contentReader = new FileReader(datasetDirectoryPath+"/dataset_content_lightrdf.json");
+            Gson gson = new Gson();
+            DatasetContent contentLightRDF = gson.fromJson(contentReader, DatasetContent.class);
+            contentReader.close();
+
+            return contentLightRDF;
+        }
+        return null;
+    }
+
 
     /**
      * This method will return the dataset content extracted by RDFLib

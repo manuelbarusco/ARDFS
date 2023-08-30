@@ -9,12 +9,21 @@ public class DataField extends Field {
     private static final FieldType type = new FieldType();
 
     static {
-        type.setStored(false);
+        //Uncomment the following lines for a lightweight index but only for BM25, LMD and TFIDF similarities
+        //type.setStored(false);
+        //type.setTokenized(true);
+        //type.setStoreTermVectors(false);
+        //type.setStoreTermVectorPositions(false);
+        //type.setIndexOptions(IndexOptions.DOCS);
+
+        type.setStored(true);
         type.setTokenized(true);
-        type.setStoreTermVectors(false);
-        type.setStoreTermVectorPositions(false);
-        type.setIndexOptions(IndexOptions.DOCS);
+        type.setStoreTermVectors(true);
+        type.setStoreTermVectorPositions(true);
+        type.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
+
+
 
     /**
      * Constructor

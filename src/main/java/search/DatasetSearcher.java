@@ -41,6 +41,7 @@ public class DatasetSearcher {
     private QualityQuery[] queries;             //the queries that we must search for
     private String resultDirectoryPath;         //path to the directory where to save the resuls
     private int maxDatasetsRetrieved;           //max number of datasets to retrieve for every query
+    private FSDMRanker fsdmRanker;              //ranker to be used for the FSDM ranking
 
     /** Constructor
      *
@@ -49,9 +50,11 @@ public class DatasetSearcher {
      * @param similarity that must be used
      * @param resultsDirectoryPath path to directory where to save the runs results
      * @param maxDatasetsRetrieved max number of datasets to retrieve for every query
+     * @param fsdmRanker ranker to be used for the FSDM ranking
      * @throws IOException if there are problems when opening the queries file
      */
-    public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath, String queryPath, int maxDatasetsRetrieved) throws IOException {
+    public DatasetSearcher(String indexPath, Analyzer analyzer, Similarity similarity, String resultsDirectoryPath,
+                           String queryPath, int maxDatasetsRetrieved, FSDMRanker fsdmRanker) throws IOException {
         //check for the indexPath
         if(indexPath == null || indexPath.isEmpty())
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -97,6 +100,7 @@ public class DatasetSearcher {
         queries = new QueriesReader().readQueries(queryPath);
 
         this.maxDatasetsRetrieved = maxDatasetsRetrieved;
+        this.fsdmRanker = fsdmRanker;
     }
 
     /**
@@ -269,7 +273,7 @@ public class DatasetSearcher {
      */
     public static void main(String[] args) throws IOException, ParseException {
 
-        String indexPath = "/media/manuel/Tesi/Index/Index_Stop_OnlyJENA";
+        String indexPath = "/media/manuel/Tesi/Index/Stream_Jena_LightRDF_Deduplication_Good";
         String resultPath = "/home/manuel/Tesi/ACORDAR/Run/ARDFS";
         String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
         Analyzer a = CustomAnalyzer.getStopwordsAnalyzer();
@@ -283,7 +287,7 @@ public class DatasetSearcher {
 
         // ---------- LMD ------------ //
         Similarity s = new LMDirichletSimilarity();
-        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        DatasetSearcher searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10, null);
         searcher.searchInMetaData("LMD[m]", null);
         searcher.searchInContent("LMD[d]", null);
         searcher.searchInAllInfo("LMD[m+d]", null);
@@ -293,7 +297,7 @@ public class DatasetSearcher {
 
         // ---------- BM25 ------------ //
         s = new BM25Similarity();
-        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10,null);
         searcher.searchInMetaData("BM25[m]", null);
         searcher.searchInContent("BM25[d]", null);
         searcher.searchInAllInfo("BM25[m+d]", null);
@@ -303,13 +307,14 @@ public class DatasetSearcher {
 
         // ---------- TFIDF  ------------ //
         s = new ClassicSimilarity();
-        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10);
+        searcher = new DatasetSearcher(indexPath,a,s,resultPath, queryPath, 10,null);
         searcher.searchInMetaData("TFIDF[m]", null);
         searcher.searchInContent("TFIDF[d]", null);
         searcher.searchInAllInfo("TFIDF[m+d]", null);
         searcher.searchInMetaData("TFIDFBoost[m]", BoostWeights.TFIDFMetadataBoostWeights);
         searcher.searchInContent("TFIDFBoost[d]", BoostWeights.TFIDFDataBoostWeights);
         searcher.searchInAllInfo("TFIDFBoost[m+d]", BoostWeights.TFIDFBoostWeights);
+
 
     }
 
