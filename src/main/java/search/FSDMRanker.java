@@ -4,6 +4,8 @@ import analyze.CustomAnalyzer;
 import javafx.util.Pair;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.classic.ClassicAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.document.Document;
@@ -396,12 +398,13 @@ public class FSDMRanker {
 
     public static void main(String[] args) throws IOException {
         String queryPath = "/home/manuel/Tesi/ACORDAR/Data/all_queries.txt";
-        String indexPath = "/media/manuel/Tesi/Index/Stream_Jena_LightRDF_Deduplication";
+        String indexPath = "/media/manuel/Tesi/Index/Stream_Jena_LightRDF_Deduplication_Good";
         String resultDirectoryPath = "/home/manuel/Tesi/ACORDAR/Run/ARDFS";
         Analyzer analyzer = CustomAnalyzer.getStopwordsAnalyzer();
-        String runID = "FSDM[d]";
+        //Analyzer analyzer = new StandardAnalyzer();
+        String runID = "FSDM[m]";
         int nHits = 10;
-        HashMap<String, Float> boostWeights = BoostWeights.FSDMDataBoostWeights;
+        HashMap<String, Float> boostWeights = BoostWeights.FSDMMetadataBoostWeights;
 
         FSDMRanker ranker = new FSDMRanker(indexPath, analyzer, nHits, boostWeights);
 
@@ -413,7 +416,7 @@ public class FSDMRanker {
             String textQuery = query.getValue(QueryFields.TEXT);
             String queryID = query.getQueryID();
 
-            System.out.println("Searching query: "+queryID);
+            System.out.println("Searching query: " + queryID + " " + runID);
 
             List<Pair<Integer, Double>> rank = ranker.getFSDMRankingList(textQuery);
 

@@ -2,10 +2,7 @@ package index;
 
 import analyze.CustomAnalyzer;
 import com.google.gson.*;
-
-import java.io.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -16,12 +13,12 @@ import parse.DatasetFields;
 import parse.DatasetReader;
 import utils.DatasetContent;
 import utils.DatasetMetaData;
-import java.nio.charset.StandardCharsets;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.Reader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Scanner;
 
@@ -33,7 +30,7 @@ import java.util.Scanner;
  * @since 1.0
  */
 
-public class DatasetIndexer {
+public class DatasetIndexerLabels {
 
     private File indexDirectory;                        //File object to the index directory
     private IndexWriter writer;                         //Lucene object for creating an index
@@ -51,7 +48,7 @@ public class DatasetIndexer {
      * @param resume boolean that indicates if we have to resume an indexing process
      * @param no_empty_datasets boolean that indicates if we want to ignore the empty datasets
      */
-    public DatasetIndexer(String indexPath, Similarity similarity, Analyzer analyzer, boolean resume, boolean no_empty_datasets){
+    public DatasetIndexerLabels(String indexPath, Similarity similarity, Analyzer analyzer, boolean resume, boolean no_empty_datasets){
         //check for the indexPath
         if(indexPath.isEmpty() || indexPath == null)
             throw new IllegalArgumentException("The index directory path cannot be null or empty");
@@ -188,33 +185,10 @@ public class DatasetIndexer {
 
                     //if the dataset is mined from RDFLib or Jena we recover the json file for the content
                     //else the two variables have null value
-                    DatasetContent contentJena = reader.getContentJena();
-                    DatasetContent contentRDFLib = reader.getContentRDFLib();
-
-                    //check if the dataset is mined from LightRDF
-                    Scanner entitiesFile = null;
-                    Scanner classesFile = null;
-                    Scanner literalsFile = null;
-                    Scanner propertiesFile = null;
-
-                    File entities = new File(dataset.getPath()+"/entities_lightrdf.txt");
-                    File classes = new File(dataset.getPath()+"/classes_lightrdf.txt");
-                    File literals = new File(dataset.getPath()+"/literals_lightrdf.txt");
-                    File properties = new File(dataset.getPath()+"/properties_lightrdf.txt");
-
-                    boolean bigDataset = false;
-
-                    if(entities.exists()){
-                        entitiesFile = new Scanner(entities);
-                        classesFile = new Scanner(classes);
-                        propertiesFile = new Scanner(properties);
-                        literalsFile = new Scanner(literals);
-
-                        bigDataset = isBigDataset(entities,properties, literals, classes);
-                    }
+                    DatasetContent contentRDFLibHR = reader.getContentRDFLibHRClean();
 
                     try {
-                        indexDataset(metaData, contentJena, contentRDFLib, entitiesFile, classesFile, propertiesFile, literalsFile, bigDataset);
+                        indexDataset(metaData, contentRDFLibHR);
 
                     } catch (OutOfMemoryError e ){
                         System.out.println("Out of Memory in dataset:"+dataset.getName());
@@ -222,8 +196,7 @@ public class DatasetIndexer {
                     }
 
                     //force to release memory
-                    contentRDFLib = null;
-                    contentJena = null;
+                    contentRDFLibHR = null;
                     System.gc();
 
                     //update the dataset_metadata.json file with the "indexed" field
@@ -271,17 +244,10 @@ public class DatasetIndexer {
      * This method will index a single dataset
      *
      * @param metaData a DatasetMetaData object with all the dataset meta info
-     * @param contentJena a DatasetContent object with all the dataset content extracted from JENA
-     * @param contentRDFLib a DatasetContent object with all the dataset content extracted from RDFLib
-     * @param entitiesFile file with the entities extracted from LightRDF
-     * @param classesFile file with the classes extracted from LightRDF
-     * @param propertiesFile file with the properties extracted from LightRDF
-     * @param literalsFile file with the literals extracted from LightRDF
-     * @param bigDataset boolean that indicates if the dataset is big
+     * @param contentRDFLibHR a DatasetContent object with all the dataset content extracted from RDFLib
      * @throws IOException if there are problems during the index writing of the dataset
      */
-    private void indexDataset(DatasetMetaData metaData, DatasetContent contentJena, DatasetContent contentRDFLib,
-                              Scanner entitiesFile, Scanner classesFile, Scanner propertiesFile, Scanner literalsFile, boolean bigDataset) throws IOException {
+    private void indexDataset(DatasetMetaData metaData, DatasetContent contentRDFLibHR) throws IOException {
 
         Document dataset = new Document();
 
@@ -301,104 +267,25 @@ public class DatasetIndexer {
         for(String tag: tags)
             dataset.add(new MetadataField(DatasetFields.TAGS, tag));
 
-        //add the content extracted by JENA
+        //add the content extracted by RDFLibHR
 
-        if (contentJena != null) {
-            for (String entity : contentJena.entities)
+        if(contentRDFLibHR!=null){
+            for(String entity: contentRDFLibHR.entities)
                 dataset.add(new DataField(DatasetFields.ENTITIES, entity));
 
-            for (String dClass : contentJena.classes)
+            for(String dClass: contentRDFLibHR.classes)
                 dataset.add(new DataField(DatasetFields.CLASSES, dClass));
 
-            for (String literal : contentJena.literals)
+            for(String literal: contentRDFLibHR.literals)
                 dataset.add(new DataField(DatasetFields.LITERALS, literal));
 
-            for (String property : contentJena.properties)
+            for(String property: contentRDFLibHR.properties)
                 dataset.add(new DataField(DatasetFields.PROPERTIES, property));
         }
 
         //release memory
-        contentJena = null;
+        contentRDFLibHR = null;
         System.gc();
-
-        //add the content extracted by RDFLib
-
-        if(contentRDFLib!=null){
-            for(String entity: contentRDFLib.entities)
-                dataset.add(new DataField(DatasetFields.ENTITIES, entity));
-
-            for(String dClass: contentRDFLib.classes)
-                dataset.add(new DataField(DatasetFields.CLASSES, dClass));
-
-            for(String literal: contentRDFLib.literals)
-                dataset.add(new DataField(DatasetFields.LITERALS, literal));
-
-            for(String property: contentRDFLib.properties)
-                dataset.add(new DataField(DatasetFields.PROPERTIES, property));
-        }
-
-        //release memory
-        contentRDFLib = null;
-        System.gc();
-
-        //check if there are elements from LightRDF
-
-        if(entitiesFile != null && !bigDataset) {
-            while(entitiesFile.hasNext()){
-                dataset.add(new DataField(DatasetFields.ENTITIES, entitiesFile.nextLine().replace("\n", "")));
-            }
-
-            while(classesFile.hasNext()){
-                dataset.add(new DataField(DatasetFields.CLASSES, classesFile.nextLine().replace("\n", "")));
-            }
-
-            while(literalsFile.hasNext()){
-                dataset.add(new DataField(DatasetFields.LITERALS, literalsFile.nextLine().replace("\n", "")));
-            }
-
-            while(propertiesFile.hasNext()){
-                dataset.add(new DataField(DatasetFields.PROPERTIES, propertiesFile.nextLine().replace("\n", "")));
-            }
-            entitiesFile.close();
-            classesFile.close();
-            literalsFile.close();
-            propertiesFile.close();
-
-        }
-
-        if(entitiesFile != null && bigDataset) {
-
-            int tripleLimit = 100000;
-
-            int i = 0;
-            while(entitiesFile.hasNext() && i < tripleLimit){
-                dataset.add(new DataField(DatasetFields.ENTITIES, entitiesFile.nextLine().replace("\n", "")));
-                i++;
-            }
-
-            i = 0;
-            while(classesFile.hasNext() && i < tripleLimit){
-                dataset.add(new DataField(DatasetFields.CLASSES, classesFile.nextLine().replace("\n", "")));
-                i++;
-            }
-
-            i = 0;
-            while(literalsFile.hasNext() && i < tripleLimit){
-                dataset.add(new DataField(DatasetFields.LITERALS, literalsFile.nextLine().replace("\n", "")));
-                i++;
-            }
-
-            i = 0;
-            while(propertiesFile.hasNext() && i < tripleLimit){
-                dataset.add(new DataField(DatasetFields.PROPERTIES, propertiesFile.nextLine().replace("\n", "")));
-                i++;
-            }
-            entitiesFile.close();
-            classesFile.close();
-            literalsFile.close();
-            propertiesFile.close();
-
-        }
 
         //System.out.println((Runtime.getRuntime().totalMemory() / (1024*1024)) - (Runtime.getRuntime().freeMemory() / (1024*1024) ));
 
@@ -414,7 +301,7 @@ public class DatasetIndexer {
      */
     public static void main(String[] args) throws IOException {
 
-        String indexPath = "/media/manuel/Tesi/Index/Index_Stop_FSDM";
+        String indexPath = "/media/manuel/Tesi/Index/Labelsv2_Parsing_Clean";
         String datasetsDirectoryPath = "/media/manuel/Tesi/Datasets";
         //String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Datasets";
 
@@ -423,7 +310,7 @@ public class DatasetIndexer {
 
         boolean resume = false;
         boolean no_empty_dataset = false;
-        DatasetIndexer indexer = new DatasetIndexer(indexPath, s, a, resume, no_empty_dataset);
+        DatasetIndexerLabels indexer = new DatasetIndexerLabels(indexPath, s, a, resume, no_empty_dataset);
 
         indexer.indexDatasets(datasetsDirectoryPath);
 

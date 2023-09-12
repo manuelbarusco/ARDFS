@@ -162,10 +162,10 @@ public class DatasetReader {
         if (contentFileRDFLib.exists()){
             FileReader contentReader = new FileReader(path);
             Gson gson = new Gson();
-            DatasetContent contentRDFLib = gson.fromJson(contentReader, DatasetContent.class);
+            DatasetContent contentRDFLibHR = gson.fromJson(contentReader, DatasetContent.class);
             contentReader.close();
 
-            return contentRDFLib;
+            return contentRDFLibHR;
         }
         return null;
     }
